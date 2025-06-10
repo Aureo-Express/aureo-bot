@@ -29,7 +29,6 @@ client.on('ready', () => {
 
 client.initialize();
 
-// Atendimento automático
 client.on('message', async msg => {
     const contato = await msg.getContact();
     const nome = contato.pushname || "cliente";
@@ -113,8 +112,6 @@ client.on('message', async msg => {
             conversas[telefone].etapa = 0;
     }
 });
-
-// Webhook da Yampi com validação da chave secreta
 app.post('/webhook-yampi', async (req, res) => {
     const secretRecebido = req.headers['x-yampi-webhook-secret'];
     const chaveEsperada = "wh_Wyz0t8ddRjjoiWcQa2KLmjtcZTahe1SpvxxpQ";
@@ -133,22 +130,36 @@ app.post('/webhook-yampi', async (req, res) => {
     const pagamentos = Array.isArray(pagamento) ? pagamento : [pagamento];
 
     if (telefone && nome) {
-        let mensagem = `*Gabriela Lima*\nOi, ${nome}! 😍 Recebemos seu pedido!`;
+        const telefoneLimpo = telefone.replace(/\D/g, "");
+        const chatId = `${telefoneLimpo}@c.us`;
 
-        for (const p of pagamentos) {
-            if (p.method === "pix" && p.pix?.code) {
-                mensagem += `\n\n💰 *Pagamento via Pix:*\n\`\`\`${p.pix.code}\`\`\``;
-            } else if (p.method === "boleto" && p.boleto?.barcode) {
-                mensagem += `\n\n📄 *Boleto bancário:*\n\`\`\`${p.boleto.barcode}\`\`\``;
-                if (p.boleto.link) {
-                    mensagem += `\nLink do boleto: ${p.boleto.link}`;
+        try {
+            const isRegistered = await client.isRegisteredUser(chatId);
+            if (!isRegistered) {
+                console.log("❌ Número não registrado no WhatsApp:", chatId);
+                return res.sendStatus(400);
+            }
+
+            let mensagem = `*Gabriela Lima*\nOi, ${nome}! 😍 Recebemos seu pedido!`;
+
+            for (const p of pagamentos) {
+                if (p.method === "pix" && p.pix?.code) {
+                    mensagem += `\n\n💰 *Pagamento via Pix:*\n\`\`\`${p.pix.code}\`\`\``;
+                } else if (p.method === "boleto" && p.boleto?.barcode) {
+                    mensagem += `\n\n📄 *Boleto bancário:*\n\`\`\`${p.boleto.barcode}\`\`\``;
+                    if (p.boleto.link) {
+                        mensagem += `\nLink do boleto: ${p.boleto.link}`;
+                    }
                 }
             }
+
+            mensagem += `\n\nAssim que o pagamento for confirmado, te envio o rastreio! 🧡`;
+            await client.sendMessage(chatId, mensagem);
+            console.log("✅ Mensagem enviada para:", chatId);
+        } catch (error) {
+            console.error("❌ Erro ao enviar mensagem:", error.message);
+            return res.sendStatus(500);
         }
-
-        mensagem += `\n\nAssim que o pagamento for confirmado, te envio o rastreio! 🧡`;
-
-        await client.sendMessage(`${telefone}@c.us`, mensagem);
     }
 
     res.sendStatus(200);
