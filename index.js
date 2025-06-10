@@ -122,16 +122,47 @@ client.on('message', async msg => {
     }
 });
 
-// Webhook Yampi
+// Webhook Yampi com validação de chave secreta
 app.post('/webhook-yampi', async (req, res) => {
+    const secretRecebido = req.headers['x-yampi-webhook-secret'];
+    const chaveEsperada = "wh_Wyz0t8ddRjjoiWcQa2KLmjtcZTahe1SpvxxpQ";
+
+    if (secretRecebido !== chaveEsperada) {
+        console.log("❌ Webhook rejeitado: chave secreta inválida");
+        return res.sendStatus(401);
+    }
+
     console.log("📦 Webhook recebido da Yampi:", req.body);
 
     const pedido = req.body;
     const nome = pedido?.customer?.name;
     const telefone = pedido?.customer?.phone;
+    const pagamento = pedido?.payment;
+    const pagamentos = Array.isArray(pagamento) ? pagamento : [pagamento];
 
     if (telefone && nome) {
-        await client.sendMessage(`${telefone}@c.us`, `*Gabriela Lima*\nOi, ${nome}! 😍 Recebemos seu pedido!\nAssim que for confirmado, enviaremos o código de rastreio pra você aqui mesmo. Obrigada por comprar com a Áureo Express!`);
+        let mensagem = `*Gabriela Lima*\nOi, ${nome}! 😍 Recebemos seu pedido!`;
+
+        for (const p of pagamentos) {
+            if (p.method === "pix") {
+                const pix = p.pix;
+                if (pix?.code) {
+                    mensagem += `\n\n💰 *Pagamento via Pix:*\nCopie e cole o código abaixo:\n\`\`\`\n${pix.code}\n\`\`\``;
+                }
+            } else if (p.method === "boleto") {
+                const boleto = p.boleto;
+                if (boleto?.barcode) {
+                    mensagem += `\n\n📄 *Pagamento via Boleto:*\nCódigo de barras:\n\`\`\`\n${boleto.barcode}\n\`\`\``;
+                    if (boleto.link) {
+                        mensagem += `\nLink do boleto: ${boleto.link}`;
+                    }
+                }
+            }
+        }
+
+        mensagem += `\n\nAssim que o pagamento for confirmado, te envio o rastreio por aqui mesmo! 🧡`;
+
+        await client.sendMessage(`${telefone}@c.us`, mensagem);
     }
 
     res.sendStatus(200);
