@@ -1,25 +1,25 @@
-// Gabriela Lima - atendente virtual humanizada
 const qrcode = require('qrcode-terminal');
 const express = require('express');
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const moment = require('moment-timezone');
 const bodyParser = require('body-parser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware para processar JSON
 app.use(bodyParser.json());
 
 const client = new Client({
     authStrategy: new LocalAuth(),
-    puppeteer: { headless: true }
+    puppeteer: {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    }
 });
 
-const conversas = {}; // Estado por número
+const conversas = {};
 
-// Gerar QR Code no terminal
 client.on('qr', qr => {
+    console.log("🔄 Escaneie o QR code abaixo para conectar:");
     qrcode.generate(qr, { small: true });
 });
 
@@ -27,15 +27,10 @@ client.on('ready', () => {
     console.log('✅ WhatsApp conectado com sucesso!');
 });
 
-// Inicializa WhatsApp
 client.initialize();
 
-// Função delay
-const delay = ms => new Promise(res => setTimeout(res, ms));
-
-// Atende mensagens do WhatsApp
+// Atendimento automático
 client.on('message', async msg => {
-    const chat = await msg.getChat();
     const contato = await msg.getContact();
     const nome = contato.pushname || "cliente";
     const telefone = msg.from;
@@ -43,12 +38,9 @@ client.on('message', async msg => {
 
     if (!conversas[telefone]) conversas[telefone] = { etapa: 0 };
 
-    await chat.sendStateTyping();
-    await delay(1000);
-
     const etapa = conversas[telefone].etapa;
 
-    if (texto.includes("oi") || texto.includes("bom dia") || texto.includes("boa tarde")) {
+    if (["oi", "bom dia", "boa tarde", "boa noite"].some(p => texto.includes(p))) {
         await client.sendMessage(telefone, `*Gabriela Lima*\nOlá, ${nome}! Tudo bem? 😊\nSou *Gabriela Lima*, da Áureo Express. Como posso te ajudar hoje?\n\n1️⃣ Fazer um novo pedido\n2️⃣ Acompanhar pedido\n3️⃣ Tenho dúvidas`);
         conversas[telefone].etapa = 1;
         return;
@@ -60,7 +52,7 @@ client.on('message', async msg => {
                 await client.sendMessage(telefone, `*Gabriela Lima*\nÓtimo! Qual produto você deseja adquirir?`);
                 conversas[telefone].etapa = 2;
             } else if (texto === "2") {
-                await client.sendMessage(telefone, `*Gabriela Lima*\nClaro! Me informe seu *nome completo* para eu localizar o pedido.`);
+                await client.sendMessage(telefone, `*Gabriela Lima*\nClaro! Me informe seu *nome completo* para localizar o pedido.`);
                 conversas[telefone].etapa = 10;
             } else if (texto === "3") {
                 await client.sendMessage(telefone, `*Gabriela Lima*\nPode mandar sua dúvida aqui que eu te ajudo rapidinho! 💬`);
@@ -72,7 +64,7 @@ client.on('message', async msg => {
 
         case 2:
             conversas[telefone].produto = texto;
-            await client.sendMessage(telefone, `*Gabriela Lima*\nPerfeito, vamos prosseguir com o seu pedido.\nPor favor, envie seu *endereço completo com CEP* para o envio.`);
+            await client.sendMessage(telefone, `*Gabriela Lima*\nPerfeito. Envie seu *endereço completo com CEP* para o envio.`);
             conversas[telefone].etapa = 3;
             break;
 
@@ -83,46 +75,46 @@ client.on('message', async msg => {
             break;
 
         case 4:
-            if (texto.includes("1")) {
-                await client.sendMessage(telefone, `*Gabriela Lima*\n🔑 Chave Pix: *CNPJ 59800036000100*\n💵 Valor: *R$129,00*\n\nMe avise assim que pagar, tá bom?`);
-            } else if (texto.includes("2")) {
+            if (texto === "1") {
+                await client.sendMessage(telefone, `*Gabriela Lima*\n🔑 Chave Pix: *CNPJ 59800036000100*\n💵 Valor: *R$129,00*`);
+            } else if (texto === "2") {
                 await client.sendMessage(telefone, `*Gabriela Lima*\n🔗 Link para pagar com cartão:\nhttps://aureo-express.pay.yampi.com.br/r/O839CRL949`);
             } else {
-                await client.sendMessage(telefone, `*Gabriela Lima*\nEscolha entre *1* Pix ou *2* Cartão para continuar 😊`);
+                await client.sendMessage(telefone, `*Gabriela Lima*\nEscolha *1* para Pix ou *2* para Cartão.`);
                 return;
             }
             conversas[telefone].etapa = 5;
-
-            setTimeout(async () => {
-                await client.sendMessage(telefone, `*Gabriela Lima*\nVocê conseguiu efetuar o pagamento? Se precisar de ajuda, estou aqui! 💛`);
+            setTimeout(() => {
+                client.sendMessage(telefone, `*Gabriela Lima*\nVocê conseguiu pagar? Se precisar de ajuda, estou aqui! 💛`);
             }, 10 * 60 * 1000);
             break;
 
         case 5:
-            await client.sendMessage(telefone, `*Gabriela Lima*\nSeu pedido está sendo processado! 😊 Se tiver qualquer dúvida, me chame aqui.`);
+            await client.sendMessage(telefone, `*Gabriela Lima*\nSeu pedido está sendo processado! 📦`);
             conversas[telefone].etapa = 0;
             break;
 
         case 10:
             conversas[telefone].nomeCliente = texto;
-            await client.sendMessage(telefone, `*Gabriela Lima*\nVerificando o status do seu pedido, aguarde um instante... 🔎`);
-            await delay(5000);
-            await client.sendMessage(telefone, `*Gabriela Lima*\nEncontrei aqui! Seu pedido está *em trânsito* e chega em breve. 📦`);
+            await client.sendMessage(telefone, `*Gabriela Lima*\nVerificando... aguarde 🔎`);
+            setTimeout(() => {
+                client.sendMessage(telefone, `*Gabriela Lima*\nSeu pedido está *em trânsito*! 🚚`);
+            }, 5000);
             conversas[telefone].etapa = 0;
             break;
 
         case 20:
-            await client.sendMessage(telefone, `*Gabriela Lima*\nObrigada por enviar sua dúvida! Vamos analisar e logo mais alguém entra em contato com você se for necessário. 😉`);
+            await client.sendMessage(telefone, `*Gabriela Lima*\nObrigada pela dúvida! Um atendente vai verificar 😉`);
             conversas[telefone].etapa = 0;
             break;
 
         default:
-            await client.sendMessage(telefone, `*Gabriela Lima*\nNão entendi muito bem 😅. Você pode digitar *oi* para começar do zero.`);
+            await client.sendMessage(telefone, `*Gabriela Lima*\nNão entendi 😅. Digite *oi* para começar do zero.`);
             conversas[telefone].etapa = 0;
     }
 });
 
-// Webhook Yampi com validação de chave secreta
+// Webhook da Yampi com validação da chave secreta
 app.post('/webhook-yampi', async (req, res) => {
     const secretRecebido = req.headers['x-yampi-webhook-secret'];
     const chaveEsperada = "wh_Wyz0t8ddRjjoiWcQa2KLmjtcZTahe1SpvxxpQ";
@@ -144,23 +136,17 @@ app.post('/webhook-yampi', async (req, res) => {
         let mensagem = `*Gabriela Lima*\nOi, ${nome}! 😍 Recebemos seu pedido!`;
 
         for (const p of pagamentos) {
-            if (p.method === "pix") {
-                const pix = p.pix;
-                if (pix?.code) {
-                    mensagem += `\n\n💰 *Pagamento via Pix:*\nCopie e cole o código abaixo:\n\`\`\`\n${pix.code}\n\`\`\``;
-                }
-            } else if (p.method === "boleto") {
-                const boleto = p.boleto;
-                if (boleto?.barcode) {
-                    mensagem += `\n\n📄 *Pagamento via Boleto:*\nCódigo de barras:\n\`\`\`\n${boleto.barcode}\n\`\`\``;
-                    if (boleto.link) {
-                        mensagem += `\nLink do boleto: ${boleto.link}`;
-                    }
+            if (p.method === "pix" && p.pix?.code) {
+                mensagem += `\n\n💰 *Pagamento via Pix:*\n\`\`\`${p.pix.code}\`\`\``;
+            } else if (p.method === "boleto" && p.boleto?.barcode) {
+                mensagem += `\n\n📄 *Boleto bancário:*\n\`\`\`${p.boleto.barcode}\`\`\``;
+                if (p.boleto.link) {
+                    mensagem += `\nLink do boleto: ${p.boleto.link}`;
                 }
             }
         }
 
-        mensagem += `\n\nAssim que o pagamento for confirmado, te envio o rastreio por aqui mesmo! 🧡`;
+        mensagem += `\n\nAssim que o pagamento for confirmado, te envio o rastreio! 🧡`;
 
         await client.sendMessage(`${telefone}@c.us`, mensagem);
     }
