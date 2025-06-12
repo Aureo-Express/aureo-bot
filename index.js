@@ -10,7 +10,10 @@ app.use(bodyParser.json());
 
 // 1) Persistir sessão em .wwebjs_auth/gabriela-session
 const client = new Client({
-    authStrategy: new LocalAuth({ clientId: 'gabriela-session' }),
+    authStrategy: new LocalAuth({
+        clientId: 'gabriela-session',
+        dataPath: './.wwebjs_auth'
+    }),
     puppeteer: {
         headless: true,
         args: ['--no-sandbox','--disable-setuid-sandbox']
@@ -44,19 +47,19 @@ client.initialize();
 // 3) Atendimento normal
 client.on('message', async msg => {
     const agora = Math.floor(Date.now()/1000);
-    if (agora - msg.timestamp > 10) return; // ignora velhas
+    if (agora - msg.timestamp > 10) return; // ignora mensagens antigas
 
     const contato = await msg.getContact();
     const nome = contato.pushname || "cliente";
     const telefone = msg.from;
     const texto = msg.body.toLowerCase().trim();
 
-    if (!conversas[telefone]) conversas[telefone] = { etapa:0 };
+    if (!conversas[telefone]) conversas[telefone] = { etapa: 0 };
     const etapa = conversas[telefone].etapa;
     const ignorar = ["ok","tudo bem","obrigado","valeu","👍","👏"];
-    if (etapa===0 && ignorar.includes(texto)) return;
+    if (etapa === 0 && ignorar.includes(texto)) return;
 
-    if (etapa===0 && ["oi","bom dia","boa tarde","boa noite"].includes(texto)) {
+    if (etapa === 0 && ["oi","bom dia","boa tarde","boa noite"].includes(texto)) {
         await responderComDelay(telefone,
             `✨ Olá, ${nome}! Que alegria te receber por aqui!\n` +
             `Sou *Gabriela Lima*, sua assistente na Áureo Express.\n` +
@@ -69,18 +72,18 @@ client.on('message', async msg => {
 
     switch (etapa) {
         case 1:
-            if (texto==="1") {
+            if (texto === "1") {
                 conversas[telefone].abandonar = true;
                 await responderComDelay(telefone,
                     `*Gabriela Lima*\nÓtimo! Qual produto você deseja adquirir?`
                 );
                 conversas[telefone].etapa = 2;
-            } else if (texto==="2") {
+            } else if (texto === "2") {
                 await responderComDelay(telefone,
                     `*Gabriela Lima*\nClaro! Me informe seu *nome completo* para localizar o pedido.`
                 );
                 conversas[telefone].etapa = 10;
-            } else if (texto==="3") {
+            } else if (texto === "3") {
                 await responderComDelay(telefone,
                     `*Gabriela Lima*\n✨ Pode me perguntar o que quiser, ${nome}.\n` +
                     `Estou aqui para tirar suas dúvidas com carinho e agilidade 🤗`
@@ -112,13 +115,13 @@ client.on('message', async msg => {
             break;
 
         case 4:
-            if (texto==="1") {
+            if (texto === "1") {
                 await responderComDelay(telefone,
                     `*Gabriela Lima*\n🔑 Chave Pix: *CNPJ 59800036000100*\n💵 Valor: *R$129,00*`
                 );
-            } else if (texto==="2") {
+            } else if (texto === "2") {
                 await responderComDelay(telefone,
-                    `*Gabriela Lima*\n🔗 Link para pagar com cartão:\n`+
+                    `*Gabriela Lima*\n🔗 Link para pagar com cartão:\n` +
                     `https://aureo-express.pay.yampi.com.br/r/O839CRL949`
                 );
             } else {
@@ -131,9 +134,9 @@ client.on('message', async msg => {
             if (conversas[telefone].abandonar) {
                 setTimeout(() => {
                     client.sendMessage(telefone,
-                        `*Gabriela Lima*\nOi, ${nome}, conseguiu pagar? Se precisar, estou aqui!`
+                        `*Gabriela Lima*\nOi, ${nome}, conseguiu pagar? Se precisar, estou aqui! 💛`
                     );
-                }, 10*60*1000);
+                }, 10 * 60 * 1000);
             }
             break;
 
